@@ -1,4 +1,6 @@
 ﻿using System.IO;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Collections.Generic;
 using Antlr4.Runtime;
 
@@ -15,7 +17,19 @@ namespace JProperties
         /// <returns>A string where line terminators are escaped</returns>
         public static string ToJPropertyString(this string value)
         {
-            return value.Replace("\r\n", "\\\r\n").Replace("\r", "\\\r").Replace("\n", "\\\n");
+            StringBuilder stringBuilder = new StringBuilder();
+            foreach(char c in value)
+            {
+                if ((int)c >= 128)
+                {
+                    stringBuilder.AppendFormat("\\u{0:x4}", (int)c);
+                }
+                else
+                {
+                    stringBuilder.Append(c);
+                }
+            }
+            return stringBuilder.ToString().Replace("\r", "\\r").Replace("\n", "\\n");
         }
     }
 }
@@ -54,7 +68,7 @@ namespace JProperties
         public void Load(Stream propertyStream)
         {
             // Open the stream for reading
-            using (StreamReader reader = new StreamReader(propertyStream))
+            using (StreamReader reader = new StreamReader(propertyStream, Encoding.GetEncoding("ISO-8859-1")))
             {
                 // open the lexers/parsers to generate key-value pairs
                 AntlrInputStream inputStream = new AntlrInputStream(reader);
@@ -79,7 +93,7 @@ namespace JProperties
                                 // Store key-value pair
                                 JPropertiesParser.KeyContext key = prop.key();
                                 JPropertiesParser.ValueContext value = prop.value();
-                                base.Add(key.GetText(), value == null ? "" : value.GetText());
+                                base.Add(key.GetText(), value == null ? "" : Regex.Unescape(value.GetText()));
                             }
                         }
                     }
@@ -94,11 +108,11 @@ namespace JProperties
         public void Store(Stream propertyStream)
         {
             // Open stream for writing
-            using (StreamWriter writer = new StreamWriter(propertyStream))
+            using (StreamWriter writer = new StreamWriter(propertyStream, Encoding.GetEncoding("ISO-8859-1")))
             {
                 foreach(KeyValuePair<string, string> prop in this)
                 {
-                    writer.WriteLine($"{prop.Key}={prop.Value.ToJPropertyString()}");
+                    writer.WriteLine($"{prop.Key.ToJPropertyString()}={prop.Value.ToJPropertyString()}");
                 }
             }
         }
